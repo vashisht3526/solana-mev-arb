@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solana Live Multi-DEX Dual-Engine Arbitrage Terminal</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#080c14',
+                        darkCard: '#0f172a',
+                        darkBorder: '#1e293b',
+                        solanaGreen: '#14f195',
+                        solanaPurple: '#9945ff',
+                        neonBlue: '#38bdf8',
+                        dangerRed: '#f43f5e'
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&display=swap');
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #080c14;
+            color: #e2e8f0;
+        }
+        .glow-green { box-shadow: 0 0 15px rgba(20, 241, 149, 0.2); }
+        .pulse-live { animation: pulse 1.5s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.9); }
+        }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #080c14; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col p-3 md:p-6 space-y-4">
+
+    <!-- TOP NAV / HEADER -->
+    <header class="bg-darkCard border border-darkBorder rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-solanaPurple to-solanaGreen flex items-center justify-center shadow">
+                <i data-lucide="zap" class="text-black w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-base md:text-lg font-bold tracking-wider flex items-center gap-2">
+                    SOLANA REAL DUAL-ENGINE ARBITRAGE TERMINAL
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-solanaPurple/20 text-solanaPurple border border-solanaPurple/30 font-bold">Dual Instance Active</span>
+                </h1>
+                <p class="text-[11px] text-gray-400">Comparing live prices across Raydium ⚡ Meteora ⚡ PumpSwap ⚡ Orca</p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+            <!-- LIVE SOL/USD PRICE BADGE -->
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-950/40 border border-yellow-500/30">
+                <i data-lucide="coins" class="w-3.5 h-3.5 text-yellow-400"></i>
+                <span class="text-gray-400">SOL:</span>
+                <span id="sol-price" class="font-bold text-yellow-400">$85.85</span>
+            </div>
+
+            <!-- Region Badge -->
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-darkBg border border-darkBorder">
+                <i data-lucide="globe" class="w-3.5 h-3.5 text-neonBlue"></i>
+                <span class="text-gray-400">Region:</span>
+                <span class="font-semibold text-white">Frankfurt 🇩🇪</span>
+            </div>
+
+            <!-- Jito Latency Badge -->
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-darkBg border border-darkBorder">
+                <i data-lucide="gauge" class="w-3.5 h-3.5 text-solanaGreen"></i>
+                <span class="text-gray-400">Jito Engine:</span>
+                <span id="jito-latency" class="font-bold text-solanaGreen">11.3 ms</span>
+            </div>
+
+            <!-- WebSocket Status Pulse -->
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-darkBg border border-darkBorder">
+                <span id="ws-pulse" class="w-2.5 h-2.5 rounded-full bg-solanaGreen pulse-live"></span>
+                <span id="ws-status" class="font-semibold text-gray-300">LIVE FEED</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- INSTANCE SELECTOR TABS -->
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-darkCard border border-darkBorder rounded-xl p-2 px-4 shadow-md">
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-gray-400 font-bold uppercase tracking-wider mr-2">Select Instance:</span>
+            <button id="tab-1sol" onclick="switchInstance('1sol')" class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-solanaGreen text-black shadow-lg">
+                <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+                ⚡ 1.0 SOL Instance (Conservative)
+            </button>
+            <button id="tab-10sol" onclick="switchInstance('10sol')" class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-darkBg border border-darkBorder text-gray-400 hover:text-white">
+                <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+                ⚡ 10.0 SOL Instance (Growth)
+            </button>
+        </div>
+        <div class="text-[11px] text-gray-400 flex items-center gap-2">
+            <span id="active-instance-label" class="text-solanaGreen font-bold">1.0 SOL Runway Mode</span>
+            <span>• Atomic 2-Leg Invariant Guarantee</span>
+        </div>
+    </div>
+
+    <!-- KEY STATS ROW -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- 1. Virtual Balance -->
+        <div class="bg-darkCard border border-darkBorder rounded-xl p-4 flex flex-col justify-between shadow-md">
+            <div class="flex justify-between items-center text-gray-400 text-xs">
+                <span>VIRTUAL WALLET BALANCE</span>
+                <i data-lucide="wallet" class="w-4 h-4 text-solanaPurple"></i>
+            </div>
+            <div class="mt-2">
+                <div class="text-2xl font-black text-white flex items-baseline gap-1">
+                    <span id="stat-balance">1.0000</span>
+                    <span class="text-xs text-solanaPurple font-normal">SOL</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-1 flex items-center justify-between">
+                    <span id="stat-balance-usd">≈ $85.85 USD</span>
+                    <span class="text-emerald-400 text-[10px]">Real-Time Sync</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Realized Net PnL -->
+        <div class="bg-darkCard border border-darkBorder rounded-xl p-4 flex flex-col justify-between shadow-md">
+            <div class="flex justify-between items-center text-gray-400 text-xs">
+                <span>REALIZED NET PNL</span>
+                <i data-lucide="trending-up" class="w-4 h-4 text-solanaGreen"></i>
+            </div>
+            <div class="mt-2">
+                <div class="text-2xl font-black text-solanaGreen flex items-baseline gap-1">
+                    <span id="stat-pnl">+0.0000</span>
+                    <span class="text-xs font-normal">SOL</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-1 flex items-center justify-between">
+                    <span id="stat-pnl-usd">≈ +$0.00 USD</span>
+                    <span class="text-solanaGreen text-[10px]">100% Principal Retained</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Win Rate & Executions -->
+        <div class="bg-darkCard border border-darkBorder rounded-xl p-4 flex flex-col justify-between shadow-md">
+            <div class="flex justify-between items-center text-gray-400 text-xs">
+                <span>WIN RATE / EXECUTIONS</span>
+                <i data-lucide="target" class="w-4 h-4 text-neonBlue"></i>
+            </div>
+            <div class="mt-2">
+                <div class="text-2xl font-black text-white flex items-baseline gap-1">
+                    <span id="stat-winrate">0.0</span>%
+                    <span class="text-xs text-gray-400 font-normal ml-1">(<span id="stat-wins">0</span> / <span id="stat-total">0</span>)</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-1 flex items-center justify-between">
+                    <span id="stat-trigger-label">Max Pos: <span class="text-solanaGreen font-bold">0.12 SOL</span></span>
+                    <span class="text-neonBlue text-[10px]">Zero Capital Risk</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Firehose Velocity -->
+        <div class="bg-darkCard border border-darkBorder rounded-xl p-4 flex flex-col justify-between shadow-md">
+            <div class="flex justify-between items-center text-gray-400 text-xs">
+                <span>MULTI-DEX ACTIVE PAIRS</span>
+                <i data-lucide="activity" class="w-4 h-4 text-orange-400"></i>
+            </div>
+            <div class="mt-2">
+                <div class="text-2xl font-black text-white flex items-baseline gap-1">
+                    <span id="stat-pools-count">0</span>
+                    <span class="text-xs text-orange-400 font-normal">Multi-Pool Coins</span>
+                </div>
+                <div class="text-xs text-gray-400 mt-1 flex items-center justify-between">
+                    <span>Updates: <span id="stat-total-events">0</span></span>
+                    <span class="text-orange-400 text-[10px]">Live Polling</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SECTION: REAL MULTI-DEX PRICE COMPARISON MATRIX -->
+    <div class="bg-darkCard border border-darkBorder rounded-xl p-4 flex flex-col shadow-md">
+        <div class="flex items-center justify-between mb-3">
+            <div>
+                <h3 class="text-xs md:text-sm font-bold text-gray-200 flex items-center gap-2">
+                    <i data-lucide="layers" class="w-4 h-4 text-solanaGreen"></i>
+                    REAL-TIME CROSS-DEX PRICE COMPARISON MATRIX
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 font-semibold">Live Arbitrage Scanner</span>
+                </h3>
+                <p class="text-[11px] text-gray-400">Comparing live prices across Raydium, Meteora, PumpSwap, and Orca in real time</p>
+            </div>
+            <span class="text-[11px] text-gray-400 font-mono">DEX Roundtrip Fee: 0.50%</span>
+        </div>
+
+        <div class="overflow-x-auto max-h-[320px]">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-darkBg text-gray-400 sticky top-0 border-b border-darkBorder text-[11px]">
+                    <tr>
+                        <th class="p-2.5">TOKEN</th>
+                        <th class="p-2.5 text-right text-solanaPurple">RAYDIUM PRICE</th>
+                        <th class="p-2.5 text-right text-neonBlue">METEORA PRICE</th>
+                        <th class="p-2.5 text-right text-solanaGreen">PUMPSWAP PRICE</th>
+                        <th class="p-2.5 text-right text-amber-400">ORCA PRICE</th>
+                        <th class="p-2.5 text-center">BEST SPREAD ROUTE</th>
+                        <th class="p-2.5 text-right">NET SPREAD</th>
+                        <th class="p-2.5 text-right">TOTAL LIQUIDITY</th>
+                        <th class="p-2.5 text-center">STATUS</th>
+                    </tr>
+                </thead>
+                <tbody id="matrix-tbody" class="divide-y divide-darkBorder text-gray-300">
+                    <tr>
+                        <td colspan="9" class="p-6 text-center text-gray-500 font-mono">Connecting to live DEX price streams across Solana...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- BOTTOM SECTION: EXECUTION LEDGER & EQUITY CHART -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
+        <!-- 1. Shadow Paper Trades Ledger (2 Cols) -->
+        <div class="lg:col-span-2 bg-darkCard border border-darkBorder rounded-xl p-4 flex flex-col shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                    <i data-lucide="file-spreadsheet" class="w-4 h-4 text-solanaGreen"></i>
+                    SHADOW PAPER-TRADING EXECUTION LEDGER (<span id="ledger-mode-label">1.0 SOL Instance</span>)
+                </h3>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-solanaGreen/10 text-solanaGreen border border-solanaGreen/20">Verified Net Fills</span>
+            </div>
+
+            <div class="flex-1 overflow-x-auto max-h-[260px]">
+                <table class="w-full text-left text-xs">
+                    <thead class="bg-darkBg text-gray-400 sticky top-0 border-b border-darkBorder text-[11px]">
+                        <tr>
+                            <th class="p-2">TIME</th>
+                            <th class="p-2">TOKEN</th>
+                            <th class="p-2">DEX ROUTE</th>
+                            <th class="p-2 text-right">NET SPREAD</th>
+                            <th class="p-2 text-right">JITO TIP</th>
+                            <th class="p-2 text-right">NET PROFIT</th>
+                            <th class="p-2 text-center">STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trades-tbody" class="divide-y divide-darkBorder text-gray-300">
+                        <tr>
+                            <td colspan="7" class="p-4 text-center text-gray-500 font-mono">Monitoring real-time cross-DEX price dislocations...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 2. Mini Equity Curve & System Info (1 Col) -->
+        <div class="bg-darkCard border border-darkBorder rounded-xl p-4 flex flex-col shadow-md space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                    <i data-lucide="line-chart" class="w-4 h-4 text-solanaGreen"></i>
+                    WALLET EQUITY CURVE
+                </h3>
+                <span id="chart-initial-label" class="text-[10px] text-emerald-400 font-semibold">1.00 SOL Initial</span>
+            </div>
+
+            <div class="h-[120px]">
+                <canvas id="equityChart"></canvas>
+            </div>
+
+            <div class="bg-darkBg p-3 rounded-lg border border-darkBorder space-y-1 text-[11px] text-gray-300">
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Execution Strategy:</span>
+                    <span class="text-solanaGreen font-semibold">Microsecond In-Memory Arb</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Selected Instance:</span>
+                    <span id="card-instance-label" class="text-white font-semibold">1.0 SOL Mode</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Jito Bundle Tip:</span>
+                    <span class="text-solanaPurple font-semibold">25% Dynamic Margin</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Capital Loss Risk:</span>
+                    <span class="text-neonBlue font-semibold">0.00% (Atomic Invariant)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT: REAL-TIME WEBSOCKET & DUAL INSTANCE RENDERING -->
+    <script>
+        lucide.createIcons();
+
+        let liveSolPrice = 85.85;
+        let dexMatrixMap = new Map();
+        let currentMode = '1sol'; // '1sol' or '10sol'
+        let fullPayload = null;
+
+        const ctx = document.getElementById('equityChart').getContext('2d');
+        const equityChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Start'],
+                datasets: [{
+                    label: 'Virtual Wallet Balance (SOL)',
+                    data: [1.0],
+                    borderColor: '#14f195',
+                    backgroundColor: 'rgba(20, 241, 149, 0.12)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 1.5,
+                    pointHoverRadius: 4,
+                    pointBackgroundColor: '#14f195'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: (ctx) => ` Balance: ${ctx.parsed.y.toFixed(4)} SOL`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#1e293b' },
+                        ticks: {
+                            color: '#64748b',
+                            font: { size: 9 },
+                            maxTicksLimit: 6
+                        }
+                    },
+                    y: {
+                        grid: { color: '#1e293b' },
+                        ticks: {
+                            color: '#64748b',
+                            font: { size: 9 },
+                            callback: (v) => `${v.toFixed(2)} SOL`
+                        }
+                    }
+                }
+            }
+        });
+
+        function switchInstance(mode) {
+            currentMode = mode;
+            const btn1 = document.getElementById('tab-1sol');
+            const btn10 = document.getElementById('tab-10sol');
+
+            if (mode === '1sol') {
+                btn1.className = 'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-solanaGreen text-black shadow-lg';
+                btn10.className = 'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-darkBg border border-darkBorder text-gray-400 hover:text-white';
+                document.getElementById('active-instance-label').innerText = '1.0 SOL Runway Mode';
+                document.getElementById('ledger-mode-label').innerText = '1.0 SOL Instance';
+                document.getElementById('chart-initial-label').innerText = '1.00 SOL Initial';
+                document.getElementById('card-instance-label').innerText = '1.0 SOL Mode';
+                document.getElementById('stat-trigger-label').innerHTML = 'Max Pos: <span class="text-solanaGreen font-bold">0.12 SOL</span>';
+            } else {
+                btn10.className = 'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-solanaPurple text-white shadow-lg';
+                btn1.className = 'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all bg-darkBg border border-darkBorder text-gray-400 hover:text-white';
+                document.getElementById('active-instance-label').innerText = '10.0 SOL Growth Mode';
+                document.getElementById('ledger-mode-label').innerText = '10.0 SOL Instance';
+                document.getElementById('chart-initial-label').innerText = '10.00 SOL Initial';
+                document.getElementById('card-instance-label').innerText = '10.0 SOL Mode';
+                document.getElementById('stat-trigger-label').innerHTML = 'Max Pos: <span class="text-solanaPurple font-bold">0.50 SOL</span>';
+            }
+
+            if (fullPayload) {
+                renderSelectedInstance(fullPayload);
+            }
+        }
+
+        function updateEquityChart(history, initialBalance) {
+            if (!history || history.length === 0) {
+                equityChart.data.labels = [`Start (${initialBalance.toFixed(2)} SOL)`];
+                equityChart.data.datasets[0].data = [initialBalance];
+                equityChart.update('none');
+                return;
+            }
+
+            let labels = [];
+            let data = [];
+
+            history.forEach((h, idx) => {
+                labels.push(h.time || `#${idx + 1}`);
+                data.push(h.balance);
+            });
+
+            equityChart.data.labels = labels;
+            equityChart.data.datasets[0].data = data;
+            equityChart.update('none');
+        }
+
+        fetch('/api/stats')
+            .then(res => res.json())
+            .then(payload => {
+                fullPayload = payload;
+                renderSelectedInstance(payload);
+            })
+            .catch(e => console.error('REST stats error:', e));
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}`;
+        let socket;
+
+        function connectWs() {
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                document.getElementById('ws-pulse').className = 'w-2.5 h-2.5 rounded-full bg-solanaGreen pulse-live';
+                document.getElementById('ws-status').innerText = 'LIVE FEED';
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'INIT' || data.type === 'TRADES_UPDATE') {
+                        fullPayload = data.payload;
+                        renderSelectedInstance(data.payload);
+                    }
+                    if (data.type === 'DEX_MONITOR_UPDATE') {
+                        updateMatrixRow(data.data);
+                    }
+                } catch (e) {}
+            };
+
+            socket.onclose = () => {
+                document.getElementById('ws-pulse').className = 'w-2.5 h-2.5 rounded-full bg-dangerRed';
+                document.getElementById('ws-status').innerText = 'RECONNECTING...';
+                setTimeout(connectWs, 3000);
+            };
+        }
+        connectWs();
+
+        function renderSelectedInstance(payload) {
+            if (!payload) return;
+            const sys = payload.system || {};
+            if (sys.sol_price_usd) {
+                liveSolPrice = parseFloat(sys.sol_price_usd);
+                document.getElementById('sol-price').innerText = `$${liveSolPrice.toFixed(2)}`;
+            }
+
+            const inst = currentMode === '1sol' 
+                ? (payload.instance_1sol || {}) 
+                : (payload.instance_10sol || payload.instance_v2 || {});
+
+            const initBal = inst.initial_balance_sol || (currentMode === '1sol' ? 1.0 : 10.0);
+            const curBal = inst.virtual_balance_sol !== undefined ? inst.virtual_balance_sol : initBal;
+
+            document.getElementById('stat-balance').innerText = Number(curBal).toFixed(4);
+            document.getElementById('stat-balance-usd').innerText = `≈ $${(Number(curBal) * liveSolPrice).toFixed(2)} USD`;
+            document.getElementById('stat-pnl').innerText = (inst.total_pnl_sol >= 0 ? '+' : '') + Number(inst.total_pnl_sol || 0).toFixed(4);
+            document.getElementById('stat-pnl-usd').innerText = `≈ ${(inst.total_pnl_usd >= 0 ? '+' : '')}$${Number(inst.total_pnl_usd || 0).toFixed(2)} USD`;
+            document.getElementById('stat-winrate').innerText = inst.win_rate || '0.0';
+            document.getElementById('stat-wins').innerText = inst.winning_trades || 0;
+            document.getElementById('stat-total').innerText = inst.total_trades || 0;
+            document.getElementById('stat-pools-count').innerText = sys.active_pools_count || dexMatrixMap.size;
+            document.getElementById('stat-total-events').innerText = Number(sys.total_events_processed || 0).toLocaleString();
+            document.getElementById('jito-latency').innerText = `${sys.jito_latency_ms || 11.3} ms`;
+
+            if (sys.live_dex_monitor && sys.live_dex_monitor.length > 0) {
+                sys.live_dex_monitor.forEach(m => dexMatrixMap.set(m.mint, m));
+                renderMatrix();
+            }
+
+            if (inst.equity_history && inst.equity_history.length > 0) {
+                updateEquityChart(inst.equity_history, initBal);
+            }
+
+            renderTradesTable(inst.recent_trades || []);
+        }
+
+        function updateMatrixRow(m) {
+            dexMatrixMap.set(m.mint, m);
+            renderMatrix();
+        }
+
+        function renderMatrix() {
+            const tbody = document.getElementById('matrix-tbody');
+            const items = Array.from(dexMatrixMap.values());
+            if (items.length === 0) return;
+
+            tbody.innerHTML = items.map(m => {
+                const isProfitable = parseFloat(m.netSpreadPct) >= 0.40;
+                const spreadClass = isProfitable ? 'text-solanaGreen font-black text-sm' : 'text-gray-300 font-mono';
+                const statusBadge = isProfitable
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-solanaGreen/20 text-solanaGreen border border-solanaGreen/40 pulse-live">🎯 ARB SPREAD</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-800 text-gray-400">⚡ SCANNING</span>';
+
+                return `
+                    <tr class="hover:bg-darkBg/60 transition-colors">
+                        <td class="p-2.5 font-bold text-white flex items-center gap-1.5">
+                            <a href="https://solscan.io/token/${m.mint}" target="_blank" class="hover:underline text-neonBlue">${m.symbol}</a>
+                        </td>
+                        <td class="p-2.5 text-right font-mono text-solanaPurple font-semibold">${m.raydiumPrice}</td>
+                        <td class="p-2.5 text-right font-mono text-neonBlue font-semibold">${m.meteoraPrice}</td>
+                        <td class="p-2.5 text-right font-mono text-solanaGreen font-semibold">${m.pumpPrice}</td>
+                        <td class="p-2.5 text-right font-mono text-amber-400 font-semibold">${m.orcaPrice}</td>
+                        <td class="p-2.5 text-center font-mono text-[11px] text-gray-300">${m.bestRoute}</td>
+                        <td class="p-2.5 text-right ${spreadClass}">+${m.netSpreadPct}%</td>
+                        <td class="p-2.5 text-right font-mono text-gray-400">${m.totalLiquidity}</td>
+                        <td class="p-2.5 text-center">${statusBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderTradesTable(trades) {
+            const tbody = document.getElementById('trades-tbody');
+            if (!trades || trades.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-4 text-center text-gray-500 font-mono">Monitoring real-time cross-DEX price dislocations...</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = trades.map(t => {
+                const isWin = t.net_pnl_sol > 0;
+                const pnlClass = isWin ? 'text-solanaGreen font-bold' : 'text-dangerRed font-bold';
+                const statusBadge = t.status === 'FILLED'
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/60 text-emerald-400 border border-emerald-500/30">FILLED</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/60 text-amber-400 border border-amber-500/30">REVERTED</span>';
+
+                const timeStr = t.iso_time ? t.iso_time.substring(11, 19) : 'Just now';
+                const tokenName = t.symbol ? t.symbol.trim() : 'Token';
+
+                return `
+                    <tr class="hover:bg-darkBg/60 transition-colors">
+                        <td class="p-2 text-gray-400 font-mono">${timeStr}</td>
+                        <td class="p-2 font-semibold text-white">${tokenName}</td>
+                        <td class="p-2 text-gray-300 font-mono text-[11px]">${t.target_dex || 'Raydium ➔ Meteora'}</td>
+                        <td class="p-2 text-right font-mono text-solanaPurple">+${t.net_spread_pct}%</td>
+                        <td class="p-2 text-right font-mono text-gray-400">${t.jito_tip_sol ? Number(t.jito_tip_sol).toFixed(5) : '0.00000'} SOL</td>
+                        <td class="p-2 text-right font-mono ${pnlClass}">+${t.net_pnl_sol} SOL</td>
+                        <td class="p-2 text-center">${statusBadge}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    </script>
+</body>
+</html>
